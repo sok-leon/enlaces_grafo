@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <title>Topología de Red (Grafo)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #0f172a;
+      --text: #e5e7eb;
+      --blue-100: #e0f2fe;
+      --edge-up: #22c55e;   /* verde */
+      --edge-down: #ef4444; /* rojo */
+    }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto; }
+    header { padding: 10px 14px; background: var(--panel); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+    .legend { display:flex; align-items:center; gap:14px; font-size: 12px; opacity: .9; }
+    .seg { display:flex; align-items:center; gap:6px; }
+    .swatch { width:26px; height:0; border-top: 4px solid var(--edge-up); }
+    .swatch.down { border-top-color: var(--edge-down); border-top-style: dashed; }
+    .actions { margin-left: auto; display:flex; gap:8px; }
+    button {
+      background: #1f2937; color: var(--text); border: 1px solid #334155; padding: 6px 10px; border-radius: 8px; cursor: pointer;
+    }
+    button:hover { background:#111827; }
+    #network { width: 100%; height: calc(100% - 64px); }
+    #error { position: absolute; top: 60px; right: 12px; background: #7f1d1d; color: #fecaca; padding: 8px 10px; border-radius: 8px; font-size: 12px; display:none; z-index: 10; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Topología de Red</h1>
+    <div class="legend">
+      <div class="seg"><span class="swatch"></span> Enlace UP</div>
+      <div class="seg"><span class="swatch down"></span> Enlace DOWN</div>
+    </div>
+    <div class="actions">
+      <button id="btnReload" title="Refrescar ahora">Refrescar</button>
+    </div>
+  </header>
+
+  <div id="error"></div>
+  <div id="network"></div>
+
+  <script>
+    // ====== Configuración ======
+    const STATUS_URL = "/status"; // Endpoint REST que retorna nodos con vecinos
+    const REFRESH_MS = 10000;     // Auto-refresco (ms)
+
+    let network = null;
+
+    function showError(msg) {
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      el.style.display = 'block';
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.style.display = 'none', 5000);
+    }
+
+    function normStatus(s) {
+      return String(s || '').trim().toLowerCase();
+    }
+
+    // Combina estados de un mismo enlace visto desde ambos lados.
+    // Regla: si cualquiera reporta "down" => edge DOWN, si no => UP.
+    function combineEdgeStatus(a, b) {
+      const A = normStatus(a), B = normStatus(b);
+      if (A === 'down' || B === 'down') return 'down';
+      return 'up';
+    }
+
+    // Construye nodos y aristas a partir del JSON de /status
+    function buildGraphData(sites) {
+      // Nodos (círculos con solo el nombre)
+      const nodes = sites.map(site => ({
+        id: site.id,
+        label: site.name,
+        shape: "circle",
+        color: { background: getNodeColor(site), border: "#334155" },
+        font: { color: "#0b1220", face: "Inter, system-ui", size: 14 },
+        borderWidth: 2
+      }));
+
+      // Deduplicación de edges con combinación de estados
+      // Clave: "minId-maxId" -> {from, to, status}
+      const edgeMap = new Map();
+
+      for (const site of sites) {
+        const neighbors = Array.isArray(site.neighbors) ? site.neighbors : [];
+        for (const nb of neighbors) {
+          const a = Number(site.id);
+          const b = Number(nb.id);
+          if (!Number.isFinite(a) || !Number.isFinite(b) || a === b) continue;
+
+          const from = Math.min(a, b);
+          const to   = Math.max(a, b);
+          const key  = `${from}-${to}`;
+          const nbStatus = normStatus(nb.status || 'up');
+
+          if (!edgeMap.has(key)) {
+            edgeMap.set(key, { from, to, status: nbStatus });
+          } else {
+            const prev = edgeMap.get(key);
+            prev.status = combineEdgeStatus(prev.status, nbStatus);
+            edgeMap.set(key, prev);
+          }
+        }
+      }
+
+      const edges = Array.from(edgeMap.values()).map(e => ({
+        from: e.from,
+        to: e.to,
+        color: {
+          color: e.status === 'down' ? getEdgeDownColor() : getEdgeUpColor(),
+          highlight: e.status === 'down' ? getEdgeDownColor() : getEdgeUpColor(),
+          hover: e.status === 'down' ? getEdgeDownColor() : getEdgeUpColor()
+        },
+        dashes: e.status === 'down',
+        width: e.status === 'down' ? 3 : 2,
+        title: `Enlace ${e.from} ↔ ${e.to}: ${e.status.toUpperCase()}`
+      }));
+
+      return { nodes, edges };
+    }
+
+    function getNodeColor(site) {
+      // Nodos en azul claro; puedes cambiar lógica si deseas colorear por estado del propio nodo.
+      return "#E0F2FE"; // --blue-100
+    }
+
+    function getEdgeUpColor()   { return "#22c55e"; } // verde
+    function getEdgeDownColor() { return "#ef4444"; } // rojo
+
+    async function fetchStatus() {
+      const res = await fetch(STATUS_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    async function loadAndRender() {
+      try {
+        const sites = await fetchStatus();
+
+        // Validación básica
+        if (!Array.isArray(sites)) {
+          throw new Error("El endpoint /status debe retornar un arreglo de nodos.");
+        }
+        for (const s of sites) {
+          if (typeof s.id === "undefined" || typeof s.name === "undefined") {
+            throw new Error("Cada nodo debe tener 'id' y 'name'.");
+          }
+        }
+
+        const data = buildGraphData(sites);
+
+        const container = document.getElementById("network");
+        const options = {
+          layout: { improvedLayout: true },
+          physics: {
+            enabled: true,
+            stabilization: { iterations: 200 }
+          },
+          interaction: {
+            hover: true,
+            tooltipDelay: 150,
+            navigationButtons: true,
+            keyboard: true
+          },
+          nodes: { shadow: false },
+          edges: { smooth: { type: "dynamic" } }
+        };
+
+        if (!network) {
+          network = new vis.Network(container, data, options);
+          // Ajusta vista tras estabilización
+          network.once("stabilizationIterationsDone", () => network.fit({ animation: true }));
+        } else {
+          network.setData(data);
+          network.fit({ animation: { duration: 400, easingFunction: "easeInOutQuad" } });
+        }
+
+      } catch (err) {
+        console.error(err);
+        showError(`Error cargando /status: ${err.message}`);
+      }
+    }
+
+    // Eventos UI
+    document.getElementById("btnReload").addEventListener("click", loadAndRender);
+
+    // Inicialización
+    loadAndRender();
+    setInterval(loadAndRender, REFRESH_MS);
+  </script>
+</body>
+</html>

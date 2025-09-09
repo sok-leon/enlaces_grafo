@@ -1,0 +1,35 @@
+{
+    "devices":[
+        {
+            "id": 1,
+            "name": "LEMO ",
+            "ip": "172.17.2.2",
+            "neighbors": [1, 2]
+        },
+        {
+            "id": 2, 
+            "name": "core ",
+            "ip": "172.18.124.4",    
+            "neighbors": [1, 2]
+        },
+        {
+            "id": 3,
+            "name": "SALUD",
+            "ip": "172.17.0.33",
+            "neighbors": [2, 3]
+        },
+        {
+            "id": 4,
+            "name": "CORE a SORTEO",
+            "ip": "172.17.1.18",
+            "neighbors": [2, 4]
+        }
+
+    ],
+    "telegram":[
+        {
+            "bot_token": "7184460078:AAEkFXnfB55Ps-co4QIzk_YmA1BwwyAgB7Y",
+            "chat_id": "14297639"
+        }
+    ]
+} 
