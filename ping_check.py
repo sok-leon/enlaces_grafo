@@ -17,25 +17,29 @@ def ping_device(hostname) -> bool:
 def valid(device: dict) -> tuple:
 
     name = device.get("name", "Unknown")
-    ip = device["ip"]
-    neighbors = device["neighbors"]
+    id = device["id"]
     prevous_status = False
-    status = ping_device(ip)
 
-    if not status:
+    for interface  in device["interfaces"]:
+        ip = interface["ip"]
         status = ping_device(ip)
-        prevous_status = True
-    
-    if prevous_status and not status:
-        message = f"❌ {name} ({ip}) está caído."
-        state = "down"
 
-    elif status:
-        message = f"✅ {name} ({ip}) activo."
-        state = "up"
+        if not status:
+            status = ping_device(ip)
+            prevous_status = True
+        
+        if prevous_status and not status:
+            message = f"❌ {name} ({ip}) está caído."
+            state = "down"
+
+        elif status:
+            message = f"✅ {name} ({ip}) activo."
+            state = "up"
+        
+        interface["status"]= state
+        #print (message)            
     
-    #send_telegram_alert(message)
-    return name, ip, state,  neighbors
+    return device
 
 
 def load_devices_from_json(filepath):
@@ -46,29 +50,27 @@ def load_devices_from_json(filepath):
 
 def get_json_status():
 
-    last_status = {}
     results = []
     devices = load_devices_from_json("test.json")
-
     with ThreadPoolExecutor(max_workers=5) as executor:
-            for name, ip, status, neighbors  in map(lambda d: valid(d), devices ):
-                prev_status = last_status.get(name)
-                if prev_status != status:  
-                    last_status[name] = status
-                    print (">>", name, "enviao alerta", status)
+            for device  in map(lambda d: valid(d), devices ):
+                results.append(device)
 
-                    results.append({
-                            "name": name,
-                            "ip": ip,
-                            "status": status,
-                            "neighbors": neighbors
-                        })
-    print (results)
-    return json.dumps(results, indent=4)
-    #return results
+    #return json.dumps(results, indent=4)
+    return results
 
 
 # if __name__ == "__main__":
+#     # devices = load_devices_from_json("test.json")
+#     # #print (devices)
+#     # for device in devices:
+#     #     print (valid(device))
+#     # #    print ( valid(device))
+
+#     last_status = {}
+#     results = []
 #     devices = load_devices_from_json("test.json")
-#     for device in devices:
-#         print ( valid(device))
+#     with ThreadPoolExecutor(max_workers=5) as executor:
+#             for device  in map(lambda d: valid(d), devices ):
+#                 results.append(device)
+#     print( json.dumps(results, indent=4))
