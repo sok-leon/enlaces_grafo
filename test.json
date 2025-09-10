@@ -2,28 +2,19 @@
     "devices":[
         {
             "id": 1,
-            "name": "LEMO ",
-            "ip": "172.17.2.2",
-            "neighbors": [1, 2]
-        },
+            "name": "CORE",
+            "interfaces": [
+              { "name": "Te1/6/15", "to": 10, "ip": "172.17.0.89" }
+            ]
+        }, 
         {
-            "id": 2, 
-            "name": "core ",
-            "ip": "172.18.124.4",    
-            "neighbors": [1, 2]
-        },
-        {
-            "id": 3,
-            "name": "SALUD",
-            "ip": "172.17.0.33",
-            "neighbors": [2, 3]
-        },
-        {
-            "id": 4,
-            "name": "CORE a SORTEO",
-            "ip": "172.17.1.18",
-            "neighbors": [2, 4]
-        }
+            "id": 10,
+            "name": "LEMO",
+            "interfaces": [
+              { "name": "1/2/1", "to": 3, "ip": "172.17.0.93" },
+              { "name": "1/2/3", "to": 1, "ip": "172.17.0.90" }
+            ]
+          }
 
     ],
     "telegram":[
