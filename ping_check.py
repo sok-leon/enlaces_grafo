@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 def ping_device(hostname) -> bool:
     try:
-        response = ping(hostname, timeout=3)
+        response = ping(hostname, timeout=1)
         if response is not None:
             return True
     except KeyboardInterrupt:
@@ -37,6 +37,7 @@ def valid(device: dict) -> tuple:
             state = "up"
         
         interface["status"]= state
+        state = None
         #print (message)            
     
     return device
@@ -52,9 +53,17 @@ def get_json_status():
 
     results = []
     devices = load_devices_from_json("test.json")
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=20) as executor:
             for device  in map(lambda d: valid(d), devices ):
                 results.append(device)
+
+
+
+    # results = []
+    # devices = load_devices_from_json("test.json")
+    # for device in devices:
+        
+    #     results.append(valid(device))
 
     #return json.dumps(results, indent=4)
     return results
@@ -70,7 +79,7 @@ def get_json_status():
 #     last_status = {}
 #     results = []
 #     devices = load_devices_from_json("test.json")
-#     with ThreadPoolExecutor(max_workers=5) as executor:
+#     with ThreadPoolExecutor(max_workers=15) as executor:
 #             for device  in map(lambda d: valid(d), devices ):
 #                 results.append(device)
 #     print( json.dumps(results, indent=4))

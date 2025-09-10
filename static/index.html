@@ -14,16 +14,12 @@
   <div id="network"></div>
 
   <script>
-    let network = null;
-    let nodesDataset = new vis.DataSet([]);
-    let edgesDataset = new vis.DataSet([]);
-
     async function loadGraph() {
       try {
-        const response = await fetch("/status");  // backend que devuelve el JSON
+        const response = await fetch("/status");  // backend FastAPI
         const devices = await response.json();
 
-        // --- Crear nodos ---
+        // Crear nodos
         const nodes = devices.map(dev => ({
           id: dev.id,
           label: dev.name,
@@ -32,12 +28,18 @@
           font: { color: "#fff", size: 14 }
         }));
 
-        // --- Crear edges ---
+        // Crear edges únicos
         const edges = [];
+        const seenLinks = new Set();
+
         devices.forEach(dev => {
           dev.interfaces.forEach(iface => {
-            if (dev.id < iface.to) { // evitar duplicados
+            // clave única del enlace (from-to ordenado)
+            const key = [Math.min(dev.id, iface.to), Math.max(dev.id, iface.to)].join("-");
+            if (!seenLinks.has(key)) {
+              seenLinks.add(key);
               edges.push({
+                id: key,  // id único del edge
                 from: dev.id,
                 to: iface.to,
                 label: iface.name,
@@ -49,33 +51,25 @@
           });
         });
 
-        // --- Actualizar datasets ---
-        nodesDataset.clear();
-        edgesDataset.clear();
-        nodesDataset.add(nodes);
-        edgesDataset.add(edges);
+        // Dibujar
+        const container = document.getElementById("network");
+        const data = { 
+          nodes: new vis.DataSet(nodes), 
+          edges: new vis.DataSet(edges) 
+        };
+        const options = {
+          layout: { improvedLayout: true },
+          physics: { stabilization: true },
+          edges: { smooth: { type: "dynamic" } }
+        };
 
-        // --- Inicializar grafo solo la primera vez ---
-        if (!network) {
-          const container = document.getElementById("network");
-          const data = { nodes: nodesDataset, edges: edgesDataset };
-          const options = {
-            layout: { improvedLayout: true },
-            physics: { stabilization: true },
-            edges: { smooth: { type: "dynamic" } }
-          };
-          network = new vis.Network(container, data, options);
-        }
+        new vis.Network(container, data, options);
       } catch (err) {
         console.error("Error cargando datos:", err);
       }
     }
 
-    // Cargar al inicio
     loadGraph();
-
-    // Refrescar cada 5 segundos
-    setInterval(loadGraph, 60000);
   </script>
 </body>
 </html>
