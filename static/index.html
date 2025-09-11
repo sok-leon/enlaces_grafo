@@ -14,62 +14,67 @@
   <div id="network"></div>
 
   <script>
+    let network = null;
+    let nodesDataset = new vis.DataSet([]);
+    let edgesDataset = new vis.DataSet([]);
+
     async function loadGraph() {
       try {
-        const response = await fetch("/status");  // backend FastAPI
+        const response = await fetch("/status");  // backend que devuelve el JSON
         const devices = await response.json();
 
-        // Crear nodos
+        // --- Crear nodos ---
         const nodes = devices.map(dev => ({
           id: dev.id,
           label: dev.name,
           shape: "circle",
           color: { background: "#2563eb", border: "#1e3a8a" },
-          font: { color: "#fff", size: 14 }
+          font: { color: "#fff", size: 13 }
         }));
 
-        // Crear edges únicos
+        // --- Crear edges ---
         const edges = [];
-        const seenLinks = new Set();
-
         devices.forEach(dev => {
           dev.interfaces.forEach(iface => {
-            // clave única del enlace (from-to ordenado)
-            const key = [Math.min(dev.id, iface.to), Math.max(dev.id, iface.to)].join("-");
-            if (!seenLinks.has(key)) {
-              seenLinks.add(key);
+            if (dev.id < iface.to) { // evitar duplicados
               edges.push({
-                id: key,  // id único del edge
                 from: dev.id,
                 to: iface.to,
-                label: iface.name,
                 color: iface.status === "up" ? "green" : "red",
-                font: { color: "#fff", size: 10, align: "top" },
+                font: { color: "#fff", size: 13, align: "top" },
                 dashes: iface.status === "down"
               });
             }
           });
         });
 
-        // Dibujar
-        const container = document.getElementById("network");
-        const data = { 
-          nodes: new vis.DataSet(nodes), 
-          edges: new vis.DataSet(edges) 
-        };
-        const options = {
-          layout: { improvedLayout: true },
-          physics: { stabilization: true },
-          edges: { smooth: { type: "dynamic" } }
-        };
+        // --- Actualizar datasets ---
+        nodesDataset.clear();
+        edgesDataset.clear();
+        nodesDataset.add(nodes);
+        edgesDataset.add(edges);
 
-        new vis.Network(container, data, options);
+        // --- Inicializar grafo solo la primera vez ---
+        if (!network) {
+          const container = document.getElementById("network");
+          const data = { nodes: nodesDataset, edges: edgesDataset };
+          const options = {
+            layout: { improvedLayout: true },
+            physics: { stabilization: true },
+            edges: { smooth: { type: "dynamic" } }
+          };
+          network = new vis.Network(container, data, options);
+        }
       } catch (err) {
         console.error("Error cargando datos:", err);
       }
     }
 
+    // Cargar al inicio
     loadGraph();
+
+    // Refrescar cada 5 segundos
+    setInterval(loadGraph, 60000);
   </script>
 </body>
 </html>
