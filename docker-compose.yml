@@ -1,0 +1,7 @@
+services:
+  grafo:
+    build: .
+    container_name: grafo
+  
+    network_mode: "host"
+    restart: always
